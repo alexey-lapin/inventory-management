@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+from uuid import uuid4
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
@@ -5,6 +7,19 @@ from pydantic import BaseModel
 from mock_data import inventory_items, orders, demand_forecasts, backlog_items, spending_summary, monthly_spending, category_spending, recent_transactions, purchase_orders
 
 app = FastAPI(title="Factory Inventory Management System")
+
+# Restock orders submitted via the Restocking tab (in-memory, lost on restart)
+restock_orders: List[dict] = []
+
+# Deterministic per-category delivery lead time for restock orders
+CATEGORY_LEAD_DAYS = {
+    "Actuators": 21,
+    "Circuit Boards": 14,
+    "Controllers": 10,
+    "Power Supplies": 7,
+    "Sensors": 5,
+}
+DEFAULT_LEAD_DAYS = 14
 
 # Quarter mapping for date filtering
 QUARTER_MAP = {
@@ -119,6 +134,34 @@ class CreatePurchaseOrderRequest(BaseModel):
     unit_cost: float
     expected_delivery_date: str
     notes: Optional[str] = None
+
+class RestockOrderLineRequest(BaseModel):
+    sku: str
+    quantity: int
+
+class CreateRestockOrderRequest(BaseModel):
+    budget: float
+    items: List[RestockOrderLineRequest]
+
+class RestockOrderLine(BaseModel):
+    sku: str
+    name: str
+    category: str
+    quantity: int
+    unit_cost: float
+    line_total: float
+    lead_days: int
+
+class RestockOrder(BaseModel):
+    id: str
+    order_number: str
+    status: str
+    budget: float
+    total_cost: float
+    lead_days: int
+    order_date: str
+    expected_delivery: str
+    items: List[RestockOrderLine]
 
 # API endpoints
 @app.get("/")
@@ -303,6 +346,57 @@ def get_monthly_trends():
     result = list(months.values())
     result.sort(key=lambda x: x['month'])
     return result
+
+@app.post("/api/restock-orders", response_model=RestockOrder, status_code=201)
+def create_restock_order(request: CreateRestockOrderRequest):
+    """Submit a restock order. Server recomputes cost and lead time from inventory
+    rather than trusting client-supplied prices."""
+    if not request.items:
+        raise HTTPException(status_code=400, detail="Order must include at least one item")
+
+    lines = []
+    for line_request in request.items:
+        item = next((i for i in inventory_items if i["sku"] == line_request.sku), None)
+        if not item:
+            raise HTTPException(status_code=404, detail=f"Unknown SKU: {line_request.sku}")
+        if line_request.quantity <= 0:
+            raise HTTPException(status_code=400, detail=f"Quantity must be positive for {line_request.sku}")
+
+        lead_days = CATEGORY_LEAD_DAYS.get(item["category"], DEFAULT_LEAD_DAYS)
+        lines.append(RestockOrderLine(
+            sku=item["sku"],
+            name=item["name"],
+            category=item["category"],
+            quantity=line_request.quantity,
+            unit_cost=item["unit_cost"],
+            line_total=round(line_request.quantity * item["unit_cost"], 2),
+            lead_days=lead_days
+        ))
+
+    total_cost = round(sum(line.line_total for line in lines), 2)
+    if total_cost > request.budget + 0.01:
+        raise HTTPException(status_code=400, detail="Order total exceeds budget")
+
+    lead_days = max(line.lead_days for line in lines)
+    order_date = date.today()
+    order = RestockOrder(
+        id=str(uuid4()),
+        order_number=f"RST-{order_date.year}-{len(restock_orders) + 1:04d}",
+        status="Submitted",
+        budget=request.budget,
+        total_cost=total_cost,
+        lead_days=lead_days,
+        order_date=order_date.isoformat(),
+        expected_delivery=(order_date + timedelta(days=lead_days)).isoformat(),
+        items=lines
+    )
+    restock_orders.append(order.model_dump())
+    return order
+
+@app.get("/api/restock-orders", response_model=List[RestockOrder])
+def get_restock_orders():
+    """Get all submitted restock orders, newest first"""
+    return list(reversed(restock_orders))
 
 if __name__ == "__main__":
     import uvicorn

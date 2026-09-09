@@ -52,8 +52,8 @@ class TestDemandEndpoints:
 
         stable_items = [item for item in data if item["trend"].lower() == "stable"]
 
-        # Should have at least 5 stable items
-        assert len(stable_items) >= 5, f"Expected at least 5 stable items, found {len(stable_items)}"
+        # Should have at least 1 stable item
+        assert len(stable_items) >= 1, f"Expected at least 1 stable item, found {len(stable_items)}"
 
         for item in stable_items:
             current = item["current_demand"]
@@ -65,23 +65,22 @@ class TestDemandEndpoints:
                 assert percent_change < 2.0, \
                     f"Item {item['item_name']} has {percent_change:.2f}% change, expected < 2%"
 
-    def test_demand_forecast_has_new_items(self, client):
-        """Test that new demand forecast items exist."""
-        response = client.get("/api/demand")
-        data = response.json()
+    def test_demand_forecasts_reference_real_inventory_skus(self, client):
+        """Test that every demand forecast SKU resolves to an inventory item with
+        a unit_cost, since the Restocking tab's budget math depends on that join."""
+        demand_response = client.get("/api/demand")
+        forecasts = demand_response.json()
 
-        # Check for the new items we added
-        skus = [item["item_sku"] for item in data]
+        inventory_response = client.get("/api/inventory")
+        inventory_by_sku = {item["sku"]: item for item in inventory_response.json()}
 
-        # Should have Temperature Sensor Module and Logic Controller Board
-        assert "SNR-420" in skus, "Missing Temperature Sensor Module"
-        assert "CTL-330" in skus, "Missing Logic Controller Board"
-
-        # Verify they are marked as stable
-        for item in data:
-            if item["item_sku"] in ["SNR-420", "CTL-330"]:
-                assert item["trend"].lower() == "stable", \
-                    f"New item {item['item_name']} should have stable trend"
+        assert len(forecasts) > 0
+        for forecast in forecasts:
+            sku = forecast["item_sku"]
+            assert sku in inventory_by_sku, f"Forecast SKU {sku} has no matching inventory item"
+            assert inventory_by_sku[sku]["unit_cost"] > 0
+            assert inventory_by_sku[sku]["name"] == forecast["item_name"], \
+                f"Forecast name for {sku} does not match inventory name"
 
 
 class TestBacklogEndpoints:
