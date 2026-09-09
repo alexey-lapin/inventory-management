@@ -6,6 +6,7 @@ export default {
     orders: '注文',
     finance: '財務',
     demandForecast: '需要予測',
+    restocking: '補充',
     companyName: '触媒コンポーネンツ',
     subtitle: '在庫管理システム'
   },
@@ -112,6 +113,9 @@ export default {
     onTimeDelivery: '定時配達',
     itemsCount: '{count}件',
     quantity: '数量',
+    submittedOrders: '送信済み補充注文',
+    noSubmittedOrders: '補充注文はまだありません',
+    leadTimeDays: '{days} 日',
     table: {
       orderNumber: '注文番号',
       orderId: '注文ID',
@@ -123,9 +127,11 @@ export default {
       items: '品目',
       value: '価格',
       totalValue: '合計金額',
+      totalCost: '合計金額',
       status: 'ステータス',
       expectedDelivery: '予定配達日',
-      actualDelivery: '実際の配達日'
+      actualDelivery: '実際の配達日',
+      leadTime: 'リードタイム'
     }
   },
 
@@ -188,6 +194,35 @@ export default {
     }
   },
 
+  // Restocking
+  restocking: {
+    title: '補充計画',
+    description: '予算を設定し、推奨補充品目を確認します',
+    availableBudget: '利用可能予算',
+    recommendedItems: '推奨品目',
+    totalCost: '合計金額',
+    remainingBudget: '残額',
+    itemsSelected: '選択品目数',
+    placeOrder: '発注する',
+    placing: '発注中...',
+    orderPlaced: '注文 {orderNumber} を送信しました — 納期予定 {date}（リードタイム {days} 日）',
+    noRecommendations: 'この予算内に収まる品目はありません。予算を増やしてください。',
+    skippedItems: '{count} 件は残予算超過のため除外されました',
+    submitError: '発注に失敗しました',
+    table: {
+      sku: 'SKU',
+      item: '品目',
+      category: 'カテゴリ',
+      currentDemand: '現在の需要',
+      forecastedDemand: '予測需要',
+      gap: '不足数',
+      quantity: '数量',
+      unitCost: '単価',
+      lineTotal: '小計',
+      leadTime: 'リードタイム'
+    }
+  },
+
   // Filters
   filters: {
     timePeriod: '期間',
@@ -204,6 +239,7 @@ export default {
     shipped: '出荷済み',
     processing: '処理中',
     backordered: 'バックオーダー',
+    submitted: '送信済み',
     inStock: '在庫あり',
     lowStock: '在庫僅少',
     adequate: '適量'

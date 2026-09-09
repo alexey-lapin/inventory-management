@@ -21,6 +21,16 @@ def client():
         yield test_client
 
 
+@pytest.fixture(autouse=True)
+def reset_restock_orders():
+    """Restock orders live in a module-level list; restore it after every test
+    so mutating tests can't leak state into unrelated ones."""
+    import main
+    saved = list(main.restock_orders)
+    yield
+    main.restock_orders[:] = saved
+
+
 @pytest.fixture
 def sample_inventory_item():
     """Sample inventory item for testing."""
